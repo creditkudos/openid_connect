@@ -1,0 +1,45 @@
+#!/usr/bin/env ruby
+require 'awesome_print'
+require 'dotenv/load'
+require 'active_support'
+require 'active_support/core_ext/object'
+
+current_branch   = `git rev-parse --abbrev-ref HEAD`.chomp
+gem_name         = 'openid_connect'.freeze
+local_gemserver  = ENV['CK_LOCAL_GEMSERVER_MIRROR']
+remote_gemserver = 's3://creditkudos-gemserver'.freeze
+dry              = ENV['DRY'].present? ? '--dryrun' : ''
+
+unless local_gemserver.present? && File.directory?(local_gemserver)
+  raise 'Local gemserver mirror not set. Please use an Absolute path on your local filesystem.'.red
+end
+
+if current_branch != 'master'
+  raise "Can't release a gem version from a non master branch!".red
+end
+
+def command(cmd)
+  puts "$ #{cmd.blue}"
+
+  result_ok = system cmd
+  raise "Error: #{cmd} returned non-zero response - aborting!".red unless result_ok
+end
+
+# Download a fresh copy of the gemserver
+command("aws s3 sync #{remote_gemserver} #{local_gemserver} #{dry} --delete")
+
+# Build the gem.
+command("gem build #{gem_name}.gemspec")
+
+# Add the gem.
+command("mv #{gem_name}-*.gem #{local_gemserver}/gems")
+
+# Refresh metadata.
+command("cd #{local_gemserver} && gem generate_index")
+
+# Update the remote gemserver
+command("aws s3 sync #{local_gemserver} #{remote_gemserver} #{dry} --delete")
+
+puts
+puts '-' * 80
+puts "#{gem_name} released successfully.".green
