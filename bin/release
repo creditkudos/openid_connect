@@ -14,7 +14,8 @@ unless local_gemserver.present? && File.directory?(local_gemserver)
   raise 'Local gemserver mirror not set. Please use an Absolute path on your local filesystem.'.red
 end
 
-if current_branch != 'master'
+# Currently using `master-ck` and `master-nov` as downstream aliases for creditkudos/openid_connect & nov/openid_connect
+unless current_branch == 'master' || current_branch == 'master-ck'
   raise "Can't release a gem version from a non master branch!".red
 end
 
